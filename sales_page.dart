@@ -13,21 +13,11 @@ class ArticleVendu {
   double prixVente;
   int quantite;
 
-  ArticleVendu({
-    required this.produitId,
-    required this.nomProduit,
-    required this.prixVente,
-    required this.quantite,
-  });
+  ArticleVendu({required this.produitId, required this.nomProduit, required this.prixVente, required this.quantite});
 
   double get total => prixVente * quantite;
 
-  Map<String, dynamic> toJson() => {
-        'produitId': produitId,
-        'nomProduit': nomProduit,
-        'prixVente': prixVente,
-        'quantite': quantite,
-      };
+  Map<String, dynamic> toJson() => {'produitId': produitId, 'nomProduit': nomProduit, 'prixVente': prixVente, 'quantite': quantite};
 
   factory ArticleVendu.fromJson(Map<String, dynamic> json) => ArticleVendu(
         produitId: json['produitId'] ?? '',
@@ -43,6 +33,7 @@ class Vente {
   List<ArticleVendu> articles;
   double total;
   String nomClient;
+  String telephoneClient; // Numéro du client ajouté
   String modePaiement;
 
   Vente({
@@ -51,6 +42,7 @@ class Vente {
     required this.articles,
     required this.total,
     required this.nomClient,
+    this.telephoneClient = '',
     required this.modePaiement,
   });
 
@@ -60,6 +52,7 @@ class Vente {
         'articles': articles.map((a) => a.toJson()).toList(),
         'total': total,
         'nomClient': nomClient,
+        'telephoneClient': telephoneClient,
         'modePaiement': modePaiement,
       };
 
@@ -69,6 +62,7 @@ class Vente {
         articles: (json['articles'] as List? ?? []).map((a) => ArticleVendu.fromJson(a)).toList(),
         total: (json['total'] ?? 0).toDouble(),
         nomClient: json['nomClient'] ?? 'Client Divers',
+        telephoneClient: json['telephoneClient'] ?? '',
         modePaiement: json['modePaiement'] ?? 'Espèces',
       );
 }
@@ -123,15 +117,41 @@ class _SalesPageState extends State<SalesPage> {
       if (_dateDebutHistorique != null && _dateFinHistorique != null) {
         final debut = DateTime(_dateDebutHistorique!.year, _dateDebutHistorique!.month, _dateDebutHistorique!.day);
         final fin = DateTime(_dateFinHistorique!.year, _dateFinHistorique!.month, _dateFinHistorique!.day, 23, 59, 59);
-        return v.date.isAfter(debut.subtract(const Duration(seconds: 1))) &&
-            v.date.isBefore(fin.add(const Duration(seconds: 1)));
+        return v.date.isAfter(debut.subtract(const Duration(seconds: 1))) && v.date.isBefore(fin.add(const Duration(seconds: 1)));
       }
       return true;
     }).toList();
   }
 
-  // FACTURE PDF A5 AVEC DECODAGE DU LOGO BASE64 ET CACHET
-  Future<void> _imprimerFacture(Vente vente) async {
+  // DIALOGUE DE CHOIX : IMPRIMER FACTURE OU BON DE LIVRAISON
+  void _proposerChoixImpression(Vente vente) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Type de Document'),
+        content: const Text('Que souhaitez-vous imprimer ?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _imprimerDocument(vente, estBonDeLivraison: true);
+            },
+            child: const Text('Bon de Livraison'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+              _imprimerDocument(vente, estBonDeLivraison: false);
+            },
+            child: const Text('Facture Client'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _imprimerDocument(Vente vente, {required bool estBonDeLivraison}) async {
     final pdf = pw.Document();
 
     pw.ImageProvider? logoImage;
@@ -149,6 +169,7 @@ class _SalesPageState extends State<SalesPage> {
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            // ENTÊTE COMMUNE
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
@@ -168,27 +189,46 @@ class _SalesPageState extends State<SalesPage> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
-                    pw.Text('FACTURE N° : ${vente.id.substring(vente.id.length > 5 ? vente.id.length - 5 : 0)}',
+                    pw.Text(estBonDeLivraison ? 'BON DE LIVRAISON' : 'FACTURE N° : ${vente.id.substring(vente.id.length > 5 ? vente.id.length - 5 : 0)}',
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     pw.Text('Date : ${vente.date.day}/${vente.date.month}/${vente.date.year}', style: const pw.TextStyle(fontSize: 9)),
                     pw.Text('Client : ${vente.nomClient}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                    if (vente.telephoneClient.isNotEmpty)
+                      pw.Text('Tél Client : ${vente.telephoneClient}', style: const pw.TextStyle(fontSize: 9)),
                   ],
                 ),
               ],
             ),
             pw.Divider(),
             pw.SizedBox(height: 10),
-            pw.Table.fromTextArray(
-              headers: ['ARTICLE', 'QTE', 'P. UNITAIRE', 'TOTAL'],
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-              cellStyle: const pw.TextStyle(fontSize: 9),
-              data: vente.articles.map((a) => [
-                    a.nomProduit,
-                    a.quantite.toString(),
-                    '${a.prixVente.toStringAsFixed(0)} FCFA',
-                    '${a.total.toStringAsFixed(0)} FCFA',
-                  ]).toList(),
-            ),
+
+            // CONTENU ADAPTÉ (BON DE LIVRAISON VS FACTURE)
+            if (estBonDeLivraison) ... [
+              pw.Center(child: pw.Text('BON DE LIVRAISON (Articles & Quantités)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11))),
+              pw.SizedBox(height: 10),
+              pw.Table.fromTextArray(
+                headers: ['DESIGNATION ARTICLE', 'QUANTITÉ LIVRÉE'],
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                data: vente.articles.map((a) => [
+                      a.nomProduit,
+                      a.quantite.toString(),
+                    ]).toList(),
+              ),
+            ] else ... [
+              pw.Table.fromTextArray(
+                headers: ['ARTICLE', 'QTE', 'P. UNITAIRE', 'TOTAL'],
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                data: vente.articles.map((a) => [
+                      a.nomProduit,
+                      a.quantite.toString(),
+                      '${a.prixVente.toStringAsFixed(0)} FCFA',
+                      '${a.total.toStringAsFixed(0)} FCFA',
+                    ]).toList(),
+              ),
+            ],
+
             pw.Spacer(),
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -201,12 +241,13 @@ class _SalesPageState extends State<SalesPage> {
                   alignment: pw.Alignment.center,
                   child: pw.Text('CACHET', style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
                 ),
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(8),
-                  decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black)),
-                  child: pw.Text('NET À PAYER : ${vente.total.toStringAsFixed(0)} FCFA',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                ),
+                if (!estBonDeLivraison)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black)),
+                    child: pw.Text('NET À PAYER : ${vente.total.toStringAsFixed(0)} FCFA',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                  ),
               ],
             ),
           ],
@@ -384,6 +425,7 @@ class _SalesPageState extends State<SalesPage> {
                                       articles: List.from(_panier),
                                       total: totalPanier,
                                       nomClient: _clientSelectionne?.nom ?? 'Client Divers',
+                                      telephoneClient: _clientSelectionne?.telephone ?? '',
                                       modePaiement: 'Espèces',
                                     );
                                     widget.onNouvelleVente(nouvelleVente);
@@ -401,7 +443,7 @@ class _SalesPageState extends State<SalesPage> {
                 ),
               ],
             ),
-            // Historique avec suppression qui restaure le stock
+            // Historique
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -425,19 +467,19 @@ class _SalesPageState extends State<SalesPage> {
                         final v = _historiqueVentesFiltre.reversed.toList()[index];
                         return Card(
                           child: ListTile(
-                            title: Text('Vente #${v.id.substring(v.id.length > 5 ? v.id.length - 5 : 0)} - ${v.nomClient}'),
+                            title: Text('Vente #${v.id.substring(v.id.length > 5 ? v.id.length - 5 : 0)} - ${v.nomClient} (${v.telephoneClient})'),
                             subtitle: Text('Total : ${v.total} FCFA | Date : ${v.date.day}/${v.date.month}/${v.date.year}'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.print, color: Colors.blue),
-                                  onPressed: () => _imprimerFacture(v),
+                                  tooltip: 'Imprimer Facture / Bon de livraison',
+                                  onPressed: () => _proposerChoixImpression(v),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.red),
                                   onPressed: () {
-                                    // Restauration de la quantité en stock à la suppression
                                     for (var art in v.articles) {
                                       try {
                                         final p = widget.produits.firstWhere((prod) => prod.id == art.produitId);
