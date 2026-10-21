@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'caisse_tresorerie_model.dart';
 import 'auth_model.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class CaisseTresoreriePage extends StatefulWidget {
   final List<MouvementCaisse> mouvements;
   final Function(MouvementCaisse) onMouvementAjoute;
   final Utilisateur utilisateurActif;
 
-  const CaisseTresoreriePage({Key? key, required this.mouvements, required this.onMouvementAjoute, required this.utilisateurActif}) : super(key: key);
+  const CaisseTresoreriePage({
+    Key? key,
+    required this.mouvements,
+    required this.onMouvementAjoute,
+    required this.utilisateurActif,
+  }) : super(key: key);
 
   @override
   State<CaisseTresoreriePage> createState() => _CaisseTresoreriePageState();
@@ -18,6 +26,35 @@ class _CaisseTresoreriePageState extends State<CaisseTresoreriePage> {
     double entres = widget.mouvements.where((m) => m.type == 'Versement' || m.type == 'Entrée').fold(0.0, (s, m) => s + m.montant);
     double sorties = widget.mouvements.where((m) => m.type == 'Retrait' || m.type == 'Sortie').fold(0.0, (s, m) => s + m.montant);
     return entres - sorties;
+  }
+
+  Future<void> _imprimerTresorerie() async {
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('ÉTAT DE LA TRÉSORERIE & CAISSE', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 5),
+            pw.Text('Solde Actuel : ${_soldeActuel.toStringAsFixed(0)} FCFA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+            pw.SizedBox(height: 15),
+            pw.Table.fromTextArray(
+              headers: ['Date', 'Type', 'Motif', 'Auteur', 'Montant'],
+              data: widget.mouvements.map((m) => [
+                '${m.date.day}/${m.date.month}/${m.date.year}',
+                m.type,
+                m.motif,
+                m.auteur,
+                '${m.montant} FCFA',
+              ]).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+    await Printing.layoutPdf(onLayout: (format) => pdf.save());
   }
 
   void _ajouterMouvementDialog(String typeMouvement) {
@@ -41,7 +78,6 @@ class _CaisseTresoreriePageState extends State<CaisseTresoreriePage> {
             onPressed: () {
               double? montant = double.tryParse(montantController.text);
               if (motifController.text.isNotEmpty && montant != null && montant > 0) {
-                // BLOCAGE SI RETRAIT > SOLDE CAISSE
                 if ((typeMouvement == 'Retrait' || typeMouvement == 'Sortie') && montant > _soldeActuel) {
                   showDialog(
                     context: context,
@@ -76,7 +112,18 @@ class _CaisseTresoreriePageState extends State<CaisseTresoreriePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Trésorerie & Caisse'), backgroundColor: Colors.blueGrey),
+      appBar: AppBar(
+        title: const Text('Trésorerie & Caisse'),
+        backgroundColor: Colors.blueGrey,
+        actions: [
+          // AJOUT DU BOUTON D'IMPRESSION SANS CHANGER LA STRUCTURE
+          IconButton(
+            icon: const Icon(Icons.print, color: Colors.white),
+            tooltip: 'Imprimer l\'état de la caisse',
+            onPressed: _imprimerTresorerie,
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -115,6 +162,7 @@ class _CaisseTresoreriePageState extends State<CaisseTresoreriePage> {
             Expanded(
               child: ListView.builder(
                 itemCount: widget.mouvements.length,
+                itemHeader: null,
                 itemBuilder: (context, index) {
                   final m = widget.mouvements.reversed.toList()[index];
                   bool estEntree = m.type == 'Versement' || m.type == 'Entrée';
