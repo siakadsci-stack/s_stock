@@ -57,8 +57,6 @@ void _imprimerDocument(Vente vente, {required bool estBonDeLivraison}) {
                               ),
                               pw.Text('Date : ${vente.date.day}/${vente.date.month}/${vente.date.year}', style: const pw.TextStyle(fontSize: 9)),
                               pw.Text('Client : ${vente.nomClient}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                              if (vente.telephoneClient.isNotEmpty)
-                                pw.Text('Tél Client : ${vente.telephoneClient}', style: const pw.TextStyle(fontSize: 9)),
                             ],
                           ),
                         ],
@@ -89,8 +87,8 @@ void _imprimerDocument(Vente vente, {required bool estBonDeLivraison}) {
                           data: vente.articles.map((a) => [
                                 a.nomProduit,
                                 a.quantite.toString(),
-                                '${a.prixVente.toStringAsFixed(0)} FCFA',
-                                '${a.total.toStringAsFixed(0)} FCFA',
+                                '${a.prixUnitaire.toStringAsFixed(0)} FCFA',
+                                '${a.totalArticle.toStringAsFixed(0)} FCFA',
                               ]).toList(),
                         ),
                       ],
