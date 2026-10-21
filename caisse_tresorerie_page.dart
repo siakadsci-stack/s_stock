@@ -116,7 +116,6 @@ class _CaisseTresoreriePageState extends State<CaisseTresoreriePage> {
         title: const Text('Trésorerie & Caisse'),
         backgroundColor: Colors.blueGrey,
         actions: [
-          // AJOUT DU BOUTON D'IMPRESSION SANS CHANGER LA STRUCTURE
           IconButton(
             icon: const Icon(Icons.print, color: Colors.white),
             tooltip: 'Imprimer l\'état de la caisse',
@@ -162,7 +161,6 @@ class _CaisseTresoreriePageState extends State<CaisseTresoreriePage> {
             Expanded(
               child: ListView.builder(
                 itemCount: widget.mouvements.length,
-                itemHeader: null,
                 itemBuilder: (context, index) {
                   final m = widget.mouvements.reversed.toList()[index];
                   bool estEntree = m.type == 'Versement' || m.type == 'Entrée';
