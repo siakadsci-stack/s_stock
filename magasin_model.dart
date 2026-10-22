@@ -1,6 +1,6 @@
-import 'stock_page.dart';
+Import 'stock_page.dart';
 import 'clients_page.dart';
-import 'vente_model.dart'; // <-- Remplacer sales_page.dart par le fichier contenant le modèle Vente
+import 'sales_page.dart';
 import 'expenses_page.dart';
 import 'caisse_tresorerie_model.dart';
 import 'auth_model.dart';
