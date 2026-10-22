@@ -1,4 +1,4 @@
-Import 'stock_page.dart';
+import 'stock_page.dart';
 import 'clients_page.dart';
 import 'sales_page.dart';
 import 'expenses_page.dart';
